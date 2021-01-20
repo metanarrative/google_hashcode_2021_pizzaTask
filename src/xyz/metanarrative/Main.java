@@ -10,6 +10,8 @@ public class Main {
     static int threePersonTeamAmount = 0;
     static int fourPersonTeamAmount  = 0;
     static boolean leftNeighbour = false;
+    static int upperBorder = 9;
+    static int pendingIngrAmount = 0;
 
     public static void main(String[] args) throws Exception{
         File file = new File("b_little_bit_of_everything.in");
@@ -23,22 +25,22 @@ public class Main {
         threePersonTeamAmount = getLineVar(lineVars, 2);
         fourPersonTeamAmount  = getLineVar(lineVars, 3);
 
-        ArrayList<String[]> pizzas = new ArrayList<>();
+        LinkedList<LinkedList<String>> pizzas = new LinkedList<>();
         getPizzasFromFile(fileReader, pizzas);
 
-        LinkedList<String[]> sorted = new LinkedList<>(pizzas);
-        sorted.sort(Comparator.comparingInt(o -> Integer.parseInt(o[0])));
+        LinkedList<LinkedList<String>> sorted = new LinkedList<LinkedList<String>>(pizzas);
+        sorted.sort(Comparator.comparingInt(o -> Integer.parseInt(o.get(0))));
 
-        LinkedList<String[]> sortedWithoutNums =  removeNums(sorted);
+        LinkedList<String> ingredients = createFullIngridientsList(sorted);
 
-        LinkedList<String> ingredients = createFullIngridientsList(sortedWithoutNums);
+        ingredients = removeNumsAtIngredients(ingredients);
+        pendingIngrAmount = ingredients.size();
 
-        LinkedList<LinkedList<String[]>> pizzasSortedByIngrAmount = sortByAmountOfIngr(sorted, ingredients.size());
+        LinkedList<LinkedList<LinkedList<String>>> pizzasSortedByIngrAmount = sortByAmountOfIngr(sorted, ingredients.size());
 
-        List<int[]> answers = bindAnswers(orderPizzas(
-                pizzasSortedByIngrAmount,
-                ingredients),
-                pizzas);
+        removeNums(pizzasSortedByIngrAmount);
+
+        List<int[]> answers = bindAnswers(orderPizzas(pizzasSortedByIngrAmount, ingredients), pizzas);
 
         System.out.println(answers.size());
         for (int[] arr:answers
@@ -51,26 +53,21 @@ public class Main {
         }
     }
 
-    static List<List<String[]>> orderPizzas(
-                            LinkedList<LinkedList<String[]>> pizzasSortedByIngrAmount,
+    static List<List<LinkedList<String>>> orderPizzas(
+                            LinkedList<LinkedList<LinkedList<String>>> pizzasSortedByIngrAmount,
                             LinkedList<String> ingredients){
 
-        int currentIngrAmount = 0;
-        int pendingIngrAmount = 10;
-
-        int bottomBorder = 0;
-        int upperBorder = 9;
-
-        List<List<String[]>> orderedPizzas = new LinkedList<>();
+        //List of lists for each teamnumber that contain pizzas (List<String> is a pizza with ingredients)
+        List<List<LinkedList<String>>> orderedPizzas = new LinkedList<>();
         for (int i = 0; i < twoPersonTeamAmount; i++) {
             orderedPizzas.add(new LinkedList<>());
         }
         int orderId = 0;
 
-        String[] firstPizza = new String[ingredients.size()];
-        String[] secondPizza = new String[ingredients.size()];
-        String[] thirdPizza = new String[ingredients.size()];
-        String[] fourthPizza = new String[ingredients.size()];
+        LinkedList<String> firstPizza = new LinkedList<>();
+        LinkedList<String> secondPizza = new LinkedList<>();
+        LinkedList<String> thirdPizza = new LinkedList<>();
+        LinkedList<String> fourthPizza = new LinkedList<>();
 
         boolean firstPizzaDone = false;
         boolean secondPizzaDone = false;
@@ -80,76 +77,94 @@ public class Main {
         //two person team orders processing
         while (twoPersonTeamAmount > 0){
 
-            if(pizzasSortedByIngrAmount.get(upperBorder).size() > 0 & !firstPizzaDone){
-                firstPizza = pizzasSortedByIngrAmount.get(upperBorder).getFirst();
-                orderedPizzas.get(orderId).add(pizzasSortedByIngrAmount.get(upperBorder).removeFirst());
+            if(!firstPizzaDone){
+                LinkedList<LinkedList<String>> cluster = pizzasSortedByIngrAmount.get(upperBorder); //each cluster has pizzas with same ingr amount
+                cluster = checkCluster(pizzasSortedByIngrAmount, cluster, false);
+                firstPizza = cluster.removeFirst();
+                orderedPizzas.get(orderId).add(firstPizza);
                 firstPizzaDone = true;
+                pendingIngrAmount = pendingIngrAmount - (upperBorder+1);
+            }
+            //if all ingrs are present in prev pizza, but you need more:
+            if(pendingIngrAmount-1 <= 0){
+                pendingIngrAmount= 1;
             }
 
-            if(pizzasSortedByIngrAmount.get(bottomBorder).size() > 0 & !secondPizzaDone){
-                int chosenId = checkForDuplicates(pizzasSortedByIngrAmount, ingredients, bottomBorder, firstPizza);
-
-                orderedPizzas.get(orderId).add(pizzasSortedByIngrAmount.get(bottomBorder).remove(chosenId));
+            if(!secondPizzaDone){
+                LinkedList<LinkedList<String>> cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
+                cluster = checkCluster(pizzasSortedByIngrAmount, cluster, true);
+                int chosenId = checkForDuplicates(pizzasSortedByIngrAmount, ingredients, firstPizza);
+                secondPizza = cluster.remove(chosenId);
+                orderedPizzas.get(orderId).add(secondPizza);
                 secondPizzaDone = true;
             }
-            if(pizzasSortedByIngrAmount.get(upperBorder).size() == 0 & firstPizzaDone & secondPizzaDone){
-                upperBorder--;
-            }
-            if(pizzasSortedByIngrAmount.get(bottomBorder).size() == 0 & firstPizzaDone & secondPizzaDone){
-                bottomBorder++;
-            }
+
             if(firstPizzaDone & secondPizzaDone){
                 twoPersonTeamAmount--;
                 firstPizzaDone = false;
                 secondPizzaDone = false;
                 orderId++;
+                pendingIngrAmount = ingredients.size();
             }
         }
-
-        //three person team orders processing
-//        while (threePersonTeamAmount <0){
-//            if(pizzasSortedByIngrAmount.get(upperBorder).size() > 0 & !firstPizzaDone){
-//                orderedPizzas.get(orderId).add(pizzasSortedByIngrAmount.get(upperBorder).removeFirst());
-//                currentIngrAmount = ++upperBorder;
-//                pendingIngrAmount -= currentIngrAmount;
-//                firstPizzaDone = true;
-//            }
-//            if(pizzasSortedByIngrAmount.get(bottomBorder).size() > 0 & !secondPizza){
-//
-//                //check if
-//                if(pizzasSortedByIngrAmount.get(pendingIngrAmount).size() > 0){
-//
-//                }
-//
-//                orderedPizzas.get(orderId).add(pizzasSortedByIngrAmount.get(bottomBorder).removeFirst());
-//                secondPizza = true;
-//            }
-//        }
-
-
         return orderedPizzas;
     }
 
-    static List<int[]> bindAnswers(List<List<String[]>> orderedPizzas, ArrayList<String[]> pizzas){
+    //boolean direction means movement up or down in cluster list. true is up, false is down.
+    static LinkedList<LinkedList<String>> checkCluster(LinkedList<LinkedList<LinkedList<String>>> pizzasSortedByIngrAmount,
+                                       LinkedList<LinkedList<String>> cluster,
+                                       boolean direction)
+    {
+        //if cluster is empty - move to a cluster below
+        if(cluster.size() < 1 && !direction){
+            Main.upperBorder--;
+            cluster = pizzasSortedByIngrAmount.get(Main.upperBorder);
+        }
+        if(cluster.size() < 1 && direction){
+            pendingIngrAmount++;
+            cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
+        }
+
+        return cluster;
+    }
+
+    static List<int[]> bindAnswers(List<List<LinkedList<String>>> orderedPizzas, LinkedList<LinkedList<String>> pizzas){
         List<int[]> answers = new ArrayList<>();
 
-        for (List<String[]> order:orderedPizzas
+        for (List<LinkedList<String>> order:orderedPizzas
              ) {
-             int[] orderArr = {2, pizzas.indexOf(order.get(0)), pizzas.indexOf(order.get(1))};
-             answers.add(orderArr);
+            LinkedList<String> pizzaFromOrder1 = order.get(0);
+            int firstIndex = getPizzaIndex(pizzaFromOrder1, pizzas);
+            LinkedList<String> pizzaFromOrder2 = order.get(1);
+            int secondIndex = getPizzaIndex(pizzaFromOrder2, pizzas);
+
+            int[] orderArr = {2, firstIndex, secondIndex};
+            answers.add(orderArr);
         }
         return answers;
     }
 
-    static int checkForDuplicates(LinkedList<LinkedList<String[]>> pizzasSortedByIngrAmount,
-                                   LinkedList<String> ingredients, int bottomBorder, String[] firstPizza){
+    static int getPizzaIndex(LinkedList<String> pizza, LinkedList<LinkedList<String>> pizzaList){
+        int index = 0;
+        for (int i = 0; i < pizzaList.size(); i++) {
+            LinkedList<String> pizzaFromStorage = pizzaList.get(i);
+            if(pizza == pizzaFromStorage){
+                index = i;
+            }
+        }
+        return index;
+    }
+
+    static int checkForDuplicates(LinkedList<LinkedList<LinkedList<String>>> pizzasSortedByIngrAmount,
+                                   LinkedList<String> ingredients,
+                                   List<String> firstPizza){
 
         List<Integer[]> candidates = new ArrayList<>();
         List<Integer> ids = new ArrayList<>();
         List<Integer> duplicates = new ArrayList<>();
 
         //для каждой пиццы из конкретного кластера
-        for (String[] pizza:pizzasSortedByIngrAmount.get(bottomBorder)
+        for (List<String> pizza:pizzasSortedByIngrAmount.get(pendingIngrAmount-1)
         ) {
             int duplicateAmount = 0;
             //и для каждого ингридиента этой пиццы
@@ -162,7 +177,7 @@ public class Main {
                     //если ингридиент 1 пиццы равен ингридиенту 2 пиццы
                     if(ingrID == ingredients.indexOf(firstPizzaIngr)){
                         duplicateAmount++;
-                        int id = pizzasSortedByIngrAmount.get(bottomBorder).indexOf(pizza);
+                        int id = pizzasSortedByIngrAmount.get(pendingIngrAmount-1).indexOf(pizza);
                         ids.add(id);
                         duplicates.add(duplicateAmount);
                         candidates.add(new Integer[]{id, duplicateAmount});
@@ -185,49 +200,71 @@ public class Main {
         return chosenPizzaId;
     }
 
-    static LinkedList<LinkedList<String[]>> sortByAmountOfIngr(LinkedList<String[]> input, int totalIngrAmount){
-        LinkedList<LinkedList<String[]>> result = new LinkedList<>();
+    static LinkedList<LinkedList<LinkedList<String>>> sortByAmountOfIngr(LinkedList<LinkedList<String>> input, int totalIngrAmount){
+        LinkedList<LinkedList<LinkedList<String>>> result = new LinkedList<>();
         for (int i = 0; i < totalIngrAmount; i++) {
-            result.add(i, new LinkedList<String[]>());
+            result.add(i, new LinkedList<LinkedList<String>>());
         }
 
-        for (String[] arr:input
+        for (LinkedList<String> arr:input
              ) {
-            int index = Integer.parseInt(arr[0]);
+            int index = Integer.parseInt(arr.get(0));
             result.get(index-1).add(arr);
         }
         return result;
     }
 
-    static LinkedList<String[]> removeNums(LinkedList<String[]> old){
-        LinkedList<String[]> result = new LinkedList<>();
-
-        LinkedList<String[]> sortedWithoutNums = new LinkedList<>(old);
-        for (String[] arr:sortedWithoutNums
+    static void removeNums(LinkedList<LinkedList<LinkedList<String>>> pizzasSortedByIngrAmount){
+        for (LinkedList<LinkedList<String>> cluster:pizzasSortedByIngrAmount
              ) {
-            LinkedList<String> arrToList = new LinkedList<>(Arrays.asList(arr));
-            arrToList.remove(0);
-            String[] newArr = new String[arrToList.size()];
-            for (int i = 0; i < newArr.length; i++) {
-                newArr[i] = arrToList.get(i);
+            for (List<String> pizza:cluster
+            ) {
+                pizza.remove(0);
             }
-            result.add(newArr);
         }
-        return result;
     }
 
-    static LinkedList<String> createFullIngridientsList(LinkedList<String[]> sortedPizzas){
-        LinkedList<String[]> sortedPizzasCopy = new LinkedList<>(sortedPizzas);
-        LinkedList<String> ingredients = new LinkedList<>(Arrays.asList(sortedPizzasCopy.getLast()));
+    static LinkedList<String> removeNumsAtIngredients(LinkedList<String> ingredients){
+        ArrayList<Integer> ids = new ArrayList<>();
+
+        for (int i = 0; i < ingredients.size(); i++) {
+            try{
+                int a = Integer.parseInt(ingredients.get(i));
+                ids.add(i);
+            }
+            catch (NumberFormatException e){
+
+            }
+        }
+        for (Integer i:ids
+        ) {
+            ingredients.set(i, null);
+        }
+
+        LinkedList<String> newIngrs = new LinkedList<>();
+
+        for (String s:ingredients
+             ) {
+            if(s != null){
+                newIngrs.add(s);
+            }
+        }
+
+        return newIngrs;
+    }
+
+    static LinkedList<String> createFullIngridientsList(LinkedList<LinkedList<String>> sortedPizzas){
+        LinkedList<LinkedList<String>> sortedPizzasCopy = new LinkedList<>(sortedPizzas);
+        LinkedList<String> ingredients = new LinkedList<>((sortedPizzasCopy.getLast()));
 
         while (sortedPizzasCopy.size() > 1) {
             sortedPizzasCopy.removeLast();
             //lesserDiff is what is present in lesser, but absent in current ingridients list
-            LinkedList<String> lesserDiff = new LinkedList<>(Arrays.asList(sortedPizzasCopy.getLast()));
+            LinkedList<String> lesserDiff = new LinkedList<>(sortedPizzasCopy.getLast());
             lesserDiff.removeAll(ingredients);
 
             if (lesserDiff.size() > 0) {
-                LinkedList<String> lesser = new LinkedList<>(Arrays.asList(sortedPizzasCopy.removeLast()));
+                LinkedList<String> lesser = new LinkedList<>(sortedPizzasCopy.removeLast());
 
                 for (String ingr : lesserDiff
                 ) {
@@ -270,10 +307,10 @@ public class Main {
         return null;
     }
 
-    static void getPizzasFromFile(RandomAccessFile fileReader, ArrayList<String[]> pizzas){
+    static void getPizzasFromFile(RandomAccessFile fileReader, LinkedList<LinkedList<String>> pizzas){
         try {
             while (true){
-                String[] pizzaLine = fileReader.readLine().split(" ");
+                LinkedList<String> pizzaLine = new LinkedList<>(Arrays.asList(fileReader.readLine().split(" ")));
                 pizzas.add(pizzaLine);
             }
         }
