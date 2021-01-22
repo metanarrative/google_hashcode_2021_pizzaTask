@@ -12,6 +12,7 @@ public class Main {
     static boolean leftNeighbour = false;
     static int upperBorder = 9;
     static int pendingIngrAmount = 0;
+    static boolean secondPizzaDirectionChange = false;
 
     public static void main(String[] args) throws Exception{
         File file = new File("b_little_bit_of_everything.in");
@@ -57,11 +58,10 @@ public class Main {
                             LinkedList<LinkedList<LinkedList<String>>> pizzasSortedByIngrAmount,
                             LinkedList<String> ingredients){
 
+        int teamSize = twoPersonTeamAmount;
+
         //List of lists for each teamnumber that contain pizzas (List<String> is a pizza with ingredients)
         List<List<LinkedList<String>>> orderedPizzas = new LinkedList<>();
-        for (int i = 0; i < twoPersonTeamAmount; i++) {
-            orderedPizzas.add(new LinkedList<>());
-        }
         int orderId = 0;
 
         LinkedList<String> firstPizza = new LinkedList<>();
@@ -69,42 +69,71 @@ public class Main {
         LinkedList<String> thirdPizza = new LinkedList<>();
         LinkedList<String> fourthPizza = new LinkedList<>();
 
-        boolean firstPizzaDone = false;
-        boolean secondPizzaDone = false;
-        boolean thirdPizzaDone = false;
-        boolean fourthpizzaDone = false;
+        boolean nextTeams = false;
+        boolean twoTeamDone = false;
+        boolean threeTeamDone = false;
+
 
         //two person team orders processing
-        while (twoPersonTeamAmount > 0){
+        while (teamSize > 0){
 
-            if(!firstPizzaDone){
-                LinkedList<LinkedList<String>> cluster = pizzasSortedByIngrAmount.get(upperBorder); //each cluster has pizzas with same ingr amount
-                cluster = checkCluster(pizzasSortedByIngrAmount, cluster, false);
-                firstPizza = cluster.removeFirst();
-                orderedPizzas.get(orderId).add(firstPizza);
-                firstPizzaDone = true;
-                pendingIngrAmount = pendingIngrAmount - (upperBorder+1);
+            if(nextTeams){
+                twoTeamDone = true;
+                nextTeams = false;
             }
+
+            //pizza 1
+            LinkedList<LinkedList<String>> cluster = pizzasSortedByIngrAmount.get(upperBorder); //each cluster has pizzas with same ingr amount
+            cluster = checkCluster(pizzasSortedByIngrAmount, cluster, false);
+            int pizzaSize = cluster.getFirst().size();
+            firstPizza = cluster.removeFirst();
+            orderedPizzas.add(new LinkedList<>());
+            orderedPizzas.get(orderId).add(firstPizza);
+            pendingIngrAmount = pendingIngrAmount - (upperBorder+1);
             //if all ingrs are present in prev pizza, but you need more:
             if(pendingIngrAmount-1 <= 0){
                 pendingIngrAmount= 1;
             }
 
-            if(!secondPizzaDone){
-                LinkedList<LinkedList<String>> cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
+            //pizza 2
+            cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
+            cluster = checkCluster(pizzasSortedByIngrAmount, cluster, true);
+            if(pizzaSize == cluster.get(0).size()){
+                secondPizzaDirectionChange = true;
+            }
+            int chosenId = checkForDuplicates(pizzasSortedByIngrAmount, ingredients, firstPizza);
+            secondPizza = cluster.remove(chosenId);
+            orderedPizzas.add(new LinkedList<>());
+            orderedPizzas.get(orderId).add(secondPizza);
+
+            //pizza 3
+            if(twoTeamDone) {
+                if(pendingIngrAmount-1 <= 0){
+                    pendingIngrAmount= 1;
+                }
+
+                LinkedList<String> oneTwo = new LinkedList<>();
+                oneTwo.addAll(firstPizza);
+                oneTwo.addAll(secondPizza);
+
+                pendingIngrAmount = pendingIngrAmount/2;
+
+                cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
                 cluster = checkCluster(pizzasSortedByIngrAmount, cluster, true);
-                int chosenId = checkForDuplicates(pizzasSortedByIngrAmount, ingredients, firstPizza);
-                secondPizza = cluster.remove(chosenId);
-                orderedPizzas.get(orderId).add(secondPizza);
-                secondPizzaDone = true;
+                chosenId = checkForDuplicates(pizzasSortedByIngrAmount, ingredients, oneTwo);
+                thirdPizza = cluster.remove(chosenId);
+                orderedPizzas.add(new LinkedList<>());
+                orderedPizzas.get(orderId).add(thirdPizza);
+
             }
 
-            if(firstPizzaDone & secondPizzaDone){
-                twoPersonTeamAmount--;
-                firstPizzaDone = false;
-                secondPizzaDone = false;
-                orderId++;
-                pendingIngrAmount = ingredients.size();
+            teamSize--;
+            orderId++;
+            pendingIngrAmount = ingredients.size();
+
+            if(teamSize == 0 && !twoTeamDone){
+                teamSize = threePersonTeamAmount;
+                nextTeams = true;
             }
         }
         return orderedPizzas;
@@ -120,9 +149,20 @@ public class Main {
             Main.upperBorder--;
             cluster = pizzasSortedByIngrAmount.get(Main.upperBorder);
         }
-        if(cluster.size() < 1 && direction){
+        if(!secondPizzaDirectionChange && cluster.size() < 1 && direction){
             pendingIngrAmount++;
             cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
+        }
+        if(secondPizzaDirectionChange && cluster.size() < 1){
+
+            while (cluster.size() < 1){
+                pendingIngrAmount--;
+                if(pendingIngrAmount <= 0){
+                    pendingIngrAmount = 1;
+                }
+                cluster = pizzasSortedByIngrAmount.get(pendingIngrAmount-1);
+            }
+
         }
 
         return cluster;
@@ -133,13 +173,26 @@ public class Main {
 
         for (List<LinkedList<String>> order:orderedPizzas
              ) {
-            LinkedList<String> pizzaFromOrder1 = order.get(0);
-            int firstIndex = getPizzaIndex(pizzaFromOrder1, pizzas);
-            LinkedList<String> pizzaFromOrder2 = order.get(1);
-            int secondIndex = getPizzaIndex(pizzaFromOrder2, pizzas);
+            if(order.size() == 2) {
+                LinkedList<String> pizzaFromOrder1 = order.get(0);
+                int firstIndex = getPizzaIndex(pizzaFromOrder1, pizzas);
+                LinkedList<String> pizzaFromOrder2 = order.get(1);
+                int secondIndex = getPizzaIndex(pizzaFromOrder2, pizzas);
 
-            int[] orderArr = {2, firstIndex, secondIndex};
-            answers.add(orderArr);
+                int[] orderArr = {2, firstIndex, secondIndex};
+                answers.add(orderArr);
+            }
+            if(order.size() == 3){
+                LinkedList<String> pizzaFromOrder1 = order.get(0);
+                int firstIndex = getPizzaIndex(pizzaFromOrder1, pizzas);
+                LinkedList<String> pizzaFromOrder2 = order.get(1);
+                int secondIndex = getPizzaIndex(pizzaFromOrder2, pizzas);
+                LinkedList<String> pizzaFromOrder3 = order.get(2);
+                int thirdIndex = getPizzaIndex(pizzaFromOrder3, pizzas);
+
+                int[] orderArr = {3, firstIndex, secondIndex, thirdIndex};
+                answers.add(orderArr);
+            }
         }
         return answers;
     }
